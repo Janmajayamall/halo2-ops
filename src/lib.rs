@@ -1,3 +1,4 @@
+mod canonicity;
 mod range_check;
 mod utilities;
 

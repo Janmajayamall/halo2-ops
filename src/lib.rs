@@ -1,3 +1,4 @@
+mod bit_check;
 mod canonicity;
 mod range_check;
 mod utilities;

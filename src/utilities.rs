@@ -1,4 +1,4 @@
-use ::ff::PrimeFieldBits;
+use ff::PrimeFieldBits;
 mod decompose_running_sum;
 
 /// Decompose a word `alpha` into `window_num_bits` bits (little-endian)

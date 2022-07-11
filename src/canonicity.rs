@@ -17,30 +17,27 @@ use pasta_curves::pallas;
 /// c is 1 bit value
 /// a_prime = a + (2^126 - tp)
 ///
-///
 /// Main Constraints
 /// (1) x = a + b * 2^126 + c * 2^254
 /// (2) c * b = 0
 /// (3) c * a_prime = 0
+/// (4) a_prime = a + 2^126 - t_p
 #[derive(Debug, Clone)]
-struct Canonicity {
+pub struct Config {
     q_canon: Selector,
     col_a: Column<Advice>,
-    col_a_prime: Column<Advice>,
     col_b: Column<Advice>,
     col_c: Column<Advice>,
 }
 
-impl Canonicity {
+impl Config {
     #[allow(clippy::too_many_arguments)]
     pub fn configure(
         meta: &mut ConstraintSystem<pallas::Base>,
         col_a: Column<Advice>,
-        col_a_prime: Column<Advice>,
         col_b: Column<Advice>,
         col_c: Column<Advice>,
-        two_pow_250: pallas::Base,
-        two_pow_254: pallas::Base,
+        two_pow_254: Expression<pallas::Base>,
         two_pow_126: Expression<pallas::Base>,
         t_p: Expression<pallas::Base>,
     ) -> Self {
@@ -49,7 +46,6 @@ impl Canonicity {
         let config = Self {
             q_canon,
             col_a,
-            col_a_prime,
             col_b,
             col_c,
         };
@@ -58,11 +54,11 @@ impl Canonicity {
             let q_canon = meta.query_selector(config.q_canon);
 
             let a = meta.query_advice(config.col_a, Rotation::cur());
-            let a_prime = meta.query_advice(config.col_a_prime, Rotation::cur());
+            let a_prime = meta.query_advice(config.col_a, Rotation::next());
             let b = meta.query_advice(config.col_b, Rotation::cur());
             let c = meta.query_advice(config.col_c, Rotation::cur());
 
-            let check_x = a.clone() + (b.clone() * two_pow_250) + (c.clone() * two_pow_254);
+            let check_x = a.clone() + (b.clone() * two_pow_126.clone()) + (c.clone() * two_pow_254);
             let canon_checks = iter::empty()
                 .chain(Some(("c * b = 0", c.clone() * b)))
                 .chain(Some(("c * a_prime = 0", c * a_prime)));
@@ -77,6 +73,6 @@ impl Canonicity {
             )
         });
 
-        todo!()
+        config
     }
 }

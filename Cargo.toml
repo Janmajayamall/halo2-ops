@@ -7,7 +7,14 @@ edition = "2021"
 
 
 [dependencies]
-halo2_proofs = "0.2"
+halo2 = { package = "halo2_proofs", git = "https://github.com/privacy-scaling-explorations/halo2", branch = "abstraction" }
 halo2_gadgets = "0.2.0"
 ff = "0.12"
 pasta_curves = "0.4"
+halo2wrong = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", package = "halo2wrong"}
+maingate = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", package = "maingate"}
+integer = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", package = "integer"}
+ecc = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", package = "ecc"}
+ecdsa = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", package = "ecdsa"}
+
+regex = { git = "https://github.com/rust-lang/regex" }

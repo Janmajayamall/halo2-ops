@@ -16,5 +16,10 @@ maingate = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", 
 integer = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", package = "integer"}
 ecc = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", package = "ecc"}
 ecdsa = {git = "https://github.com/privacy-scaling-explorations/halo2wrong", package = "ecdsa"}
-
+rand = "0.8.5"
 regex = { git = "https://github.com/rust-lang/regex" }
+num-bigint = { version = "0.4", features = ["rand"] }
+num-traits = "0.2"
+
+[dev-dependencies]
+rand_core = "0.6.3"

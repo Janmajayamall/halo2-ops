@@ -9,15 +9,26 @@ mod tests {
 
     use ecc::{integer::Range, EccConfig, GeneralEccChip};
     use ecdsa::ecdsa::{AssignedEcdsaSig, AssignedPublicKey, EcdsaChip};
+    use ff::PrimeField;
     use halo2::{
-        arithmetic::{CurveAffine, FieldExt},
+        arithmetic::{CurveAffine, Field, FieldExt},
         circuit::{SimpleFloorPlanner, Value},
+        dev::MockProver,
+        halo2curves::{
+            group::{Curve, Group},
+            pasta::Fp as PastaFp,
+            secp256k1::Secp256k1Affine,
+        },
         plonk::Circuit,
     };
     use integer::IntegerInstructions;
     use maingate::{
         MainGate, MainGateConfig, RangeChip, RangeConfig, RangeInstructions, RegionCtx,
     };
+    use num_bigint::BigUint;
+    use num_traits::Num;
+    use rand_core::OsRng;
+
     const BIT_LEN_LIMB: usize = 68;
     const NUMBER_OF_LIMBS: usize = 4;
 
@@ -135,8 +146,75 @@ mod tests {
     }
 
     #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
+    fn test_ecdsa() {
+        // from group's base field to scalar field
+        fn mod_n<C: CurveAffine>(x: C::Base) -> C::Scalar {
+            // convert to bigint
+            let x = BigUint::from_bytes_le(x.to_repr().as_ref());
+
+            // calculate mod scalar modulus
+            let modulus =
+                BigUint::from_str_radix(&<C::Scalar as FieldExt>::MODULUS[2..], 16).unwrap();
+            let x = x % modulus;
+
+            <C::Scalar as PrimeField>::from_str_vartime(&x.to_str_radix(10)[..]).unwrap()
+        }
+
+        fn run<C: CurveAffine, N: FieldExt>() {
+            let g = C::generator();
+            // keypair
+            let sk = <C as CurveAffine>::ScalarExt::random(OsRng);
+            let pk = (g * sk).to_affine();
+
+            // random msg_hash
+            let msg_hash = <C as CurveAffine>::ScalarExt::random(OsRng);
+
+            // Generate sig
+
+            // k
+            let k = <C as CurveAffine>::ScalarExt::random(OsRng);
+            let k_inv = k.invert().unwrap();
+
+            // r
+            let rpoint = (g * k).to_affine().coordinates().unwrap();
+            let x = rpoint.x();
+            let r = mod_n::<C>(*x);
+
+            // s
+            let s = k_inv * (msg_hash + (r * sk));
+
+            {
+                // Ensuring signature is valid
+                let s_inv = s.invert().unwrap();
+                let u_1 = msg_hash * s_inv;
+                let u_2 = r * s_inv;
+                let r_point = ((g * u_1) + (pk * u_2)).to_affine().coordinates().unwrap();
+                let x_candidate = r_point.x();
+                let r_candidate = mod_n::<C>(*x_candidate);
+                assert_eq!(r, r_candidate);
+            }
+
+            // prove valid signature
+            let k = 20;
+            let aux_generator = C::CurveExt::random(OsRng).to_affine();
+            let ecdsa_circuit = EcdsaCircuit::<C, N> {
+                public_key: Value::known(pk),
+                msg_hash: Value::known(msg_hash),
+                signature: Value::known((r, s)),
+
+                aux_generator,
+                window_size: 2,
+                _marker: PhantomData,
+            };
+
+            let public_inputs = vec![vec![]];
+            let prover = match MockProver::run(k, &ecdsa_circuit, public_inputs) {
+                Ok(prover) => prover,
+                Err(e) => panic!("{:#?}", e),
+            };
+            assert_eq!(prover.verify(), Ok(()));
+        }
+
+        run::<Secp256k1Affine, PastaFp>();
     }
 }

@@ -1,19 +1,82 @@
-// mod bit_check;
-// mod canonicity;
-// mod range_check;
-// mod utilities;
+// Few points:
+// 1. Receipt has the form {
+//     a_index,
+//     b_index,
+//     amount,
+//     expires_by
+// }
+// 2. Hash => {a_index + b_index + amount + expires_by}
+// 3. Take `b_public_key`, `a_index`, `b_index`, `amount` as public input to circuit and apply equality constraint
+
+use std::marker::PhantomData;
+
+use halo2::{
+    arithmetic::{CurveAffine, Field, FieldExt},
+    circuit::{SimpleFloorPlanner, Value},
+    dev::{CircuitLayout, MockProver},
+    halo2curves::{
+        group::{Curve, Group},
+        pasta::Fp as PastaFp,
+        secp256k1::Secp256k1Affine,
+    },
+    plonk::Circuit,
+};
+use maingate::{MainGate, MainGateConfig, RangeChip, RangeConfig};
+
+#[derive(Clone, Debug)]
+struct ReceiptConfig {
+    main_gate_config: MainGateConfig,
+    range_check_config: RangeConfig,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ReceiptCircuit<E: CurveAffine, N: FieldExt> {
+    a_index: Value<E>,
+    b_index: Value<E>,
+    amount: Value<E>,
+    expires_by: Value<E>,
+
+    b_public_key: Value<E>,
+    b_signature: Value<(E, E)>,
+
+    _marker: PhantomData<N>,
+}
+
+impl<E: CurveAffine, N: FieldExt> Circuit<N> for ReceiptCircuit<E, N> {
+    type Config = ReceiptConfig;
+    type FloorPlanner = SimpleFloorPlanner;
+
+    fn without_witnesses(&self) -> Self {
+        Self::default()
+    }
+
+    fn configure(meta: &mut halo2::plonk::ConstraintSystem<N>) -> Self::Config {
+        todo!()
+    }
+
+    fn synthesize(
+        &self,
+        config: Self::Config,
+        layouter: impl halo2::circuit::Layouter<N>,
+    ) -> Result<(), halo2::plonk::Error> {
+        todo!()
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use std::marker::PhantomData;
 
-    use ecc::{integer::Range, EccConfig, GeneralEccChip};
+    use ecc::{
+        integer::{rns::Rns, Range},
+        EccConfig, GeneralEccChip,
+    };
     use ecdsa::ecdsa::{AssignedEcdsaSig, AssignedPublicKey, EcdsaChip};
     use ff::PrimeField;
     use halo2::{
         arithmetic::{CurveAffine, Field, FieldExt},
         circuit::{SimpleFloorPlanner, Value},
-        dev::MockProver,
+        dev::{CircuitLayout, MockProver},
         halo2curves::{
             group::{Curve, Group},
             pasta::Fp as PastaFp,
@@ -145,6 +208,57 @@ mod tests {
         }
     }
 
+    // RSA verification
+    #[derive(Clone, Debug)]
+    struct RSAConfig {
+        maingate_config: MainGateConfig,
+        rangecheck_config: RangeConfig,
+    }
+
+    #[derive(Clone, Debug, Default)]
+    struct RSACircuit<N: FieldExt> {
+        public_key: Value<N>,
+        signature: Value<N>,
+        hash_value: Value<N>,
+    }
+
+    impl<N: FieldExt> Circuit<N> for RSACircuit<N> {
+        type Config = RSAConfig;
+        type FloorPlanner = SimpleFloorPlanner;
+
+        fn without_witnesses(&self) -> Self {
+            Self::default()
+        }
+
+        fn configure(meta: &mut halo2::plonk::ConstraintSystem<N>) -> Self::Config {
+            let maingate_config = MainGate::<N>::configure(meta);
+            // Note: FieldExt is `n` field that we are trying to emulate in `N` native field
+            let rns = Rns::<FieldExt, N, NUMBER_OF_LIMBS, BIT_LEN_LIMB>::construct();
+            let mut overflow_bit_lens: Vec<usize> = vec![];
+            overflow_bit_lens.extend(rns.overflow_lengths());
+            let composition_bit_lens = vec![BIT_LEN_LIMB / NUMBER_OF_LIMBS];
+            let rangecheck_config = RangeChip::<N>::configure(
+                meta,
+                &maingate_config,
+                composition_bit_lens,
+                overflow_bit_lens,
+            );
+            RSAConfig {
+                maingate_config,
+                rangecheck_config,
+            }
+        }
+
+        fn synthesize(
+            &self,
+            config: Self::Config,
+            layouter: impl halo2::circuit::Layouter<N>,
+        ) -> Result<(), halo2::plonk::Error> {
+            // create the Integer chip
+            todo!()
+        }
+    }
+
     #[test]
     fn test_ecdsa() {
         // from group's base field to scalar field
@@ -207,12 +321,19 @@ mod tests {
                 _marker: PhantomData,
             };
 
-            let public_inputs = vec![vec![]];
-            let prover = match MockProver::run(k, &ecdsa_circuit, public_inputs) {
-                Ok(prover) => prover,
-                Err(e) => panic!("{:#?}", e),
-            };
-            assert_eq!(prover.verify(), Ok(()));
+            // print circuit
+            use plotters::prelude::*;
+            let root = BitMapBackend::new("target/ecdsa.png", (3840, 2160)).into_drawing_area();
+            CircuitLayout::default()
+                .render(k, &ecdsa_circuit, &root)
+                .unwrap();
+
+            // let public_inputs = vec![vec![]];
+            // let prover = match MockProver::run(k, &ecdsa_circuit, public_inputs) {
+            //     Ok(prover) => prover,
+            //     Err(e) => panic!("{:#?}", e),
+            // };
+            // assert_eq!(prover.verify(), Ok(()));
         }
 
         run::<Secp256k1Affine, PastaFp>();

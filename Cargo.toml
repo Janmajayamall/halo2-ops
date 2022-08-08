@@ -7,7 +7,7 @@ edition = "2021"
 
 
 [dependencies]
-halo2 = { package = "halo2_proofs", git = "https://github.com/privacy-scaling-explorations/halo2", branch = "abstraction" }
+halo2 = { package = "halo2_proofs", git = "https://github.com/privacy-scaling-explorations/halo2", branch = "abstraction", features = ["dev-graph"] }
 halo2_gadgets = "0.2.0"
 ff = "0.12"
 pasta_curves = "0.4"
@@ -23,3 +23,4 @@ num-traits = "0.2"
 
 [dev-dependencies]
 rand_core = "0.6.3"
+plotters = "0.3.1"
